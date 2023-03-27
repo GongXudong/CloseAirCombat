@@ -56,29 +56,33 @@ def NEU2LLA(n, e, u, lon0=120.0, lat0=60.0, alt0=0):
 
 def get_AO_TA_R(ego_feature, enm_feature, return_side=False):
     """Get AO & TA angles and relative distance between two agent.
+    分别表示：
+        我机速度矢量与我机到敌机位移矢量的夹角;\n
+        敌机速度矢量与我机到敌机位移矢量的夹角;\n
+        两机距离.\n
 
     Args:
-        ego_feature & enemy_feature (tuple): (north, east, down, vn, ve, vd)
+        ego_feature & enemy_feature (tuple): (north, east, down, vn, ve, vd)  三向坐标和三向速度
 
     Returns:
         (tuple): ego_AO, ego_TA, R
     """
     ego_x, ego_y, ego_z, ego_vx, ego_vy, ego_vz = ego_feature
-    ego_v = np.linalg.norm([ego_vx, ego_vy, ego_vz])
+    ego_v = np.linalg.norm([ego_vx, ego_vy, ego_vz])  # 我机速度大小
     enm_x, enm_y, enm_z, enm_vx, enm_vy, enm_vz = enm_feature
-    enm_v = np.linalg.norm([enm_vx, enm_vy, enm_vz])
-    delta_x, delta_y, delta_z = enm_x - ego_x, enm_y - ego_y, enm_z - ego_z
-    R = np.linalg.norm([delta_x, delta_y, delta_z])
+    enm_v = np.linalg.norm([enm_vx, enm_vy, enm_vz])  # 敌机速度大小
+    delta_x, delta_y, delta_z = enm_x - ego_x, enm_y - ego_y, enm_z - ego_z  # 我到敌的位移矢量
+    R = np.linalg.norm([delta_x, delta_y, delta_z])  # 敌我两机的距离
 
     proj_dist = delta_x * ego_vx + delta_y * ego_vy + delta_z * ego_vz
-    ego_AO = np.arccos(np.clip(proj_dist / (R * ego_v + 1e-8), -1, 1))
+    ego_AO = np.arccos(np.clip(proj_dist / (R * ego_v + 1e-8), -1, 1))  # 我机速度矢量与位移矢量的夹角，弧度rad
     proj_dist = delta_x * enm_vx + delta_y * enm_vy + delta_z * enm_vz
-    ego_TA = np.arccos(np.clip(proj_dist / (R * enm_v + 1e-8), -1, 1))
+    ego_TA = np.arccos(np.clip(proj_dist / (R * enm_v + 1e-8), -1, 1))  # 敌机速度矢量与位移矢量的夹角，弧度rad
 
     if not return_side:
         return ego_AO, ego_TA, R
     else:
-        side_flag = np.sign(np.cross([ego_vx, ego_vy], [delta_x, delta_y]))
+        side_flag = np.sign(np.cross([ego_vx, ego_vy], [delta_x, delta_y]))  # 我机速度矢量在位移矢量的哪边，正表示右边，负表示左边
         return ego_AO, ego_TA, R, side_flag
 
 

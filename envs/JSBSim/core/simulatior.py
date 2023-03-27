@@ -71,6 +71,13 @@ class BaseSimulator(ABC):
         pass
 
     def log(self):
+        """返回飞机的经、纬、高、滚转、俯仰、偏航
+
+        格式：{self.uid},T={lon}|{lat}|{alt}|{roll}|{pitch}|{yaw},Name={self.model.upper()},Color={self.color}
+
+        Returns:
+            _type_: _description_
+        """
         lon, lat, alt = self.get_geodetic()
         roll, pitch, yaw = self.get_rpy() * 180 / np.pi
         log_msg = f"{self.uid},T={lon}|{lat}|{alt}|{roll}|{pitch}|{yaw},"

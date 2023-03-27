@@ -33,7 +33,7 @@ class PPOActor(nn.Module):
 
         self.to(device)
 
-    def forward(self, obs, rnn_states, masks, deterministic=False):
+    def forward(self, obs, rnn_states, masks, deterministic=False, return_action_dist_probs=False):
         obs = check(obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
@@ -53,14 +53,22 @@ class PPOActor(nn.Module):
         if self.use_recurrent_policy:
             actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
 
-        if self.use_prior:
-            actions, action_log_probs = self.act(actor_features, deterministic, alpha0=alpha0, beta0=beta0)
+        if not return_action_dist_probs:
+            if self.use_prior:
+                actions, action_log_probs = self.act(actor_features, deterministic, alpha0=alpha0, beta0=beta0)
+            else:
+                actions, action_log_probs = self.act(actor_features, deterministic)
+
+            return actions, action_log_probs, rnn_states
         else:
-            actions, action_log_probs = self.act(actor_features, deterministic)
+            if self.use_prior:
+                actions, action_log_probs, action_dist_probs = self.act(actor_features, deterministic, return_action_dist_probs, alpha0=alpha0, beta0=beta0)
+            else:
+                actions, action_log_probs, action_dist_probs = self.act(actor_features, deterministic, return_action_dist_probs)
 
-        return actions, action_log_probs, rnn_states
+            return actions, action_log_probs, rnn_states, action_dist_probs
 
-    def evaluate_actions(self, obs, rnn_states, action, masks, active_masks=None):
+    def evaluate_actions(self, obs, rnn_states, action, masks, active_masks=None, return_action_dist_probs=False):
         obs = check(obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
         action = check(action).to(**self.tpdv)
@@ -83,10 +91,18 @@ class PPOActor(nn.Module):
 
         if self.use_recurrent_policy:
             actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
+        
+        if not return_action_dist_probs:
+            if self.use_prior:
+                action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features, action, active_masks, alpha0=alpha0, beta0=beta0)
+            else:
+                action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features, action, active_masks)
 
-        if self.use_prior:
-            action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features, action, active_masks, alpha0=alpha0, beta0=beta0)
+            return action_log_probs, dist_entropy
         else:
-            action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features, action, active_masks)
+            if self.use_prior:
+                action_log_probs, dist_entropy, action_probs = self.act.evaluate_actions(actor_features, action, active_masks, return_action_dist_probs, alpha0=alpha0, beta0=beta0)
+            else:
+                action_log_probs, dist_entropy, action_probs = self.act.evaluate_actions(actor_features, action, active_masks, return_action_dist_probs)
 
-        return action_log_probs, dist_entropy
+            return action_log_probs, dist_entropy, action_probs

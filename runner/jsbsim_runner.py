@@ -4,6 +4,7 @@ import logging
 import numpy as np
 from typing import List
 from .base_runner import Runner, ReplayBuffer
+import sys
 
 
 def _t2n(x):
@@ -44,6 +45,8 @@ class JSBSimRunner(Runner):
 
             heading_turns_list = []
 
+            # 采样数据，采样长度是self.buffer_size，buffer里每一个数据点，包括self.n_rollout_threads条数据。
+            # 也就是一次采样的数据量是self.buffer_size * self.n_rollout_threads
             for step in range(self.buffer_size):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states_actor, rnn_states_critic = self.collect(step)
@@ -63,6 +66,7 @@ class JSBSimRunner(Runner):
 
             # compute return and update network
             self.compute()
+            # 数据准备完毕，开始训练
             train_infos = self.train()
 
             # post process
@@ -106,18 +110,42 @@ class JSBSimRunner(Runner):
 
     @torch.no_grad()
     def collect(self, step):
+        """采样一拍的数据
+
+        Args:
+            step (int):
+        
+        Returns:
+            values (np.ndarray): [n_rollout_threads, num_agents, 1], 例：32线程，平飞任务，[32, 1, 1]
+            actions (np.ndarray): [n_rollout_threads, num_agents, action_space], 例：32线程，平飞任务，[32, 1, 4]
+            action_log_probs (np.ndarray): [n_rollout_threads, num_agents, 1], 例：32线程，平飞任务，[32, 1, 1]
+            rnn_states_actor (np.ndarray): , ,例：32线程，平飞任务，[32, 1, 1, 128]
+            rnn_states_critic (np.ndarray): , ,例：32线程，平飞任务，[32, 1, 1, 128]
+        """
         self.policy.prep_rollout()
+
+        # print(self.buffer.obs.shape)
+        # print(self.buffer.obs[step].shape)
+        # print(np.concatenate(self.buffer.obs[step]).shape)
+        # sys.exit(0)
+
         values, actions, action_log_probs, rnn_states_actor, rnn_states_critic \
-            = self.policy.get_actions(np.concatenate(self.buffer.obs[step]),
+            = self.policy.get_actions(np.concatenate(self.buffer.obs[step]),  # np.concatenate会squeeze掉size为1的维度！！！
                                       np.concatenate(self.buffer.rnn_states_actor[step]),
                                       np.concatenate(self.buffer.rnn_states_critic[step]),
                                       np.concatenate(self.buffer.masks[step]))
         # split parallel data [N*M, shape] => [N, M, shape]
         values = np.array(np.split(_t2n(values), self.n_rollout_threads))
-        actions = np.array(np.split(_t2n(actions), self.n_rollout_threads))
+        actions = np.array(np.split(_t2n(actions), self.n_rollout_threads))  # shape of action: [n_rollout_threads, action_shape] -> [n_rollout_threads, num_agents, action_space]
         action_log_probs = np.array(np.split(_t2n(action_log_probs), self.n_rollout_threads))
         rnn_states_actor = np.array(np.split(_t2n(rnn_states_actor), self.n_rollout_threads))
         rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic), self.n_rollout_threads))
+        # print(values.shape)
+        # print(actions.shape)
+        # print(action_log_probs.shape)
+        # print(rnn_states_actor.shape)
+        # print(rnn_states_critic.shape)
+        # sys.exit(0)
         return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic
 
     def insert(self, data: List[np.ndarray]):

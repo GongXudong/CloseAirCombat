@@ -115,6 +115,15 @@ class VecEnv(ABC):
         Step the environments synchronously.
 
         This is available for backwards compatibility.
+
+        actions: [self.nremotes, num_agents, action_space.shape]，
+        例如，训练heading任务，n_rollout_threads为32，那么actions的shape是[32, 1, 4]
+
+        returns:
+            obs: [self.nremotes, num_agents, observation_space.shape],
+            rewards: [self.nremotes, num_agents, 1],
+            dones: [self.nremotes, num_agents, 1],
+            infos: [self.nremotes]
         """
         self.step_async(actions)
         return self.step_wait()
@@ -267,6 +276,10 @@ class SubprocVecEnv(VecEnv):
         self.num_agents = self.remotes[0].recv().x
 
     def step_async(self, actions):
+        """
+        actions: [self.nremotes, num_agents, action_space.shape]，
+        例如，训练heading任务，n_rollout_threads为32，那么actions的shape是[32, 1, 4]
+        """
         self._assert_not_closed()
         actions = np.array_split(actions, self.nremotes)
         for remote, action in zip(self.remotes, actions):

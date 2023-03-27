@@ -135,11 +135,12 @@ class SingleCombatTask(BaseTask):
         """Convert discrete action index into continuous value.
         """
         if self.use_baseline and agent_id in env.enm_ids:
+            # 这里计算了baseline_agent的action！！！！！！！！！！
             action = self.baseline_agent.get_action(env.agents[agent_id])
             return action
         else:
             norm_act = np.zeros(4)
-            norm_act[0] = action[0] / 20  - 1.
+            norm_act[0] = action[0] / 20 - 1.
             norm_act[1] = action[1] / 20 - 1.
             norm_act[2] = action[2] / 20 - 1.
             norm_act[3] = action[3] / 58 + 0.4
@@ -167,7 +168,7 @@ class SingleCombatTask(BaseTask):
                 return (3 - R) / 2.
             else:
                 return 0
-        if self.use_artillery:
+        if self.use_artillery:  # 是否使用炮，使用的话，需要更新环境中战斗机的血量
             for agent_id in env.agents.keys():
                 ego_feature = np.hstack([env.agents[agent_id].get_position(),
                                         env.agents[agent_id].get_velocity()])

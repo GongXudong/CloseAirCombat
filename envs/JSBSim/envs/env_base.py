@@ -32,6 +32,13 @@ class BaseEnv(gym.Env):
 
     @property
     def num_agents(self) -> int:
+        """智能体的数量（非智能体不算）。
+
+        如：1v1空战中，如果对手是baseline，则该值为1.
+
+        Returns:
+            int: _description_
+        """
         return self.task.num_agents
 
     @property
@@ -48,6 +55,11 @@ class BaseEnv(gym.Env):
 
     @property
     def time_interval(self) -> int:
+        """环境step一步的物理时间
+
+        Returns:
+            int: _description_
+        """
         return self.agent_interaction_steps / self.sim_freq
 
     def load(self):
@@ -59,11 +71,11 @@ class BaseEnv(gym.Env):
         self.task = BaseTask(self.config)
 
     def load_simulator(self):
-        self._jsbsims = {}     # type: Dict[str, AircraftSimulator]
+        self._jsbsims = {}  # type: Dict[str, AircraftSimulator]
         for uid, config in self.config.aircraft_configs.items():
             self._jsbsims[uid] = AircraftSimulator(
                 uid=uid,
-                color=config.get("team", "Red"),
+                color=config.get("color", "Red"),  # TODO: "team"应该改为"color"
                 model=config.get("model", "f16"),
                 init_state=config.get("init_state"),
                 origin=getattr(self.config, 'battle_field_center', (120.0, 60.0, 0.0)),
@@ -84,7 +96,7 @@ class BaseEnv(gym.Env):
                 else:
                     sim.enemies.append(s)
 
-        self._tempsims = {}    # type: Dict[str, BaseSimulator]
+        self._tempsims = {}  # type: Dict[str, BaseSimulator]
 
     def add_temp_simulator(self, sim: BaseSimulator):
         self._tempsims[sim.uid] = sim
@@ -126,6 +138,9 @@ class BaseEnv(gym.Env):
         # apply actions
         action = self._unpack(action)
         for agent_id in self.agents.keys():
+            # self._unpack(action)，返回一个字典，key是所有飞机的uid，baseline_agent的action被设置成none
+            # 注意：task.normalize_action会计算baseline_agent的动作，并返回！！！！！
+            # TODO：这种计算baseline_agent的action的方法，导致代码逻辑混乱！！！
             a_action = self.task.normalize_action(self, agent_id, action[agent_id])
             self.agents[agent_id].set_property_values(self.task.action_var, a_action)
         # run simulation
@@ -151,7 +166,9 @@ class BaseEnv(gym.Env):
         return self._pack(obs), self._pack(rewards), self._pack(dones), info
 
     def get_obs(self):
-        """Returns all agent observations in a list.
+        """Returns all agent observations in a list
+
+        每个智能体只获得自己的观测。
 
         NOTE: Agents should have access only to their local observations
         during decentralised execution.
@@ -159,7 +176,9 @@ class BaseEnv(gym.Env):
         return dict([(agent_id, self.task.get_obs(self, agent_id)) for agent_id in self.agents.keys()])
 
     def get_state(self):
-        """Returns the global state.
+        """Returns the global state
+
+        每个智能体获得所有智能体的观测之和。
 
         NOTE: This functon should not be used during decentralised execution.
         """
@@ -238,7 +257,21 @@ class BaseEnv(gym.Env):
         return [seed]
 
     def _pack(self, data: Dict[str, Any]) -> np.ndarray:
-        """Pack seperated key-value dict into grouped np.ndarray"""
+        """Pack seperated key-value dict into grouped np.ndarray
+
+        将
+        data: {
+            uid: np.ndarray,
+            ...
+        }
+        转换成
+        np.array([
+            [],
+            ...
+        ])
+        行表示智能体，列表示状态
+
+        """
         ego_data = np.array([data[uid] for uid in self.ego_ids])
         enm_data = np.array([data[uid] for uid in self.enm_ids])
         if enm_data.shape[0] > 0:
@@ -254,7 +287,22 @@ class BaseEnv(gym.Env):
         return data[:self.num_agents, ...]
 
     def _unpack(self, data: np.ndarray) -> Dict[str, Any]:
-        """Unpack grouped np.ndarray into seperated key-value dict"""
+        """Unpack grouped np.ndarray into seperated key-value dict
+
+        将
+        np.array([
+            [],
+            ...
+        ])
+        转换成
+        data: {
+            uid: np.ndarray,
+            ...
+        }
+
+        这个函数只用来处理action，
+        注意：会把baseline_agent的动作设置成none！！！！！
+        """
         assert isinstance(data, (np.ndarray, list, tuple)) and len(data) == self.num_agents
         # unpack data in the same order to packing process
         unpack_data = dict(zip((self.ego_ids + self.enm_ids)[:self.num_agents], data))

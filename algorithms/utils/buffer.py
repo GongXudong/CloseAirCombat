@@ -171,13 +171,18 @@ class ReplayBuffer(Buffer):
         A recurrent generator that yields training data for chunked RNN training arranged in mini batches.
         This generator shuffles the data by sequences.
 
+        返回数据中增加了next_obs，
+        因为数据的存储是逻辑是(o_0, a_0, r_0, d_1, o_1, ... , d_T, o_T)，所以不需要修改代码其它地方（insert等）的逻辑。
+
         Args:
             buffers (Buffer or List[Buffer])
             num_mini_batch (int): number of minibatches to split the batch into.
             data_chunk_length (int): length of sequence chunks with which to train RNN.
 
         Returns:
-            (obs_batch, actions_batch, masks_batch, old_action_log_probs_batch, advantages_batch, \
+            (obs_batch, actions_batch, masks_batch, old_action_log_probs_batch,
+                next_action_log_pros_batch,  # 用于计算动作的时间平滑loss
+                advantages_batch, \
                 returns_batch, value_preds_batch, rnn_states_actor_batch, rnn_states_critic_batch)
         """
         buffer = [buffer] if isinstance(buffer, ReplayBuffer) else buffer  # type: List[ReplayBuffer]
@@ -207,6 +212,11 @@ class ReplayBuffer(Buffer):
         rnn_states_actor = np.vstack([ReplayBuffer._cast(buf.rnn_states_actor[:-1]) for buf in buffer])
         rnn_states_critic = np.vstack([ReplayBuffer._cast(buf.rnn_states_critic[:-1]) for buf in buffer])
 
+        # TODO: 增加next_obs, rnn_next_states_actor用于计算temporal smooth action loss
+        next_obs = np.vstack([ReplayBuffer._cast(buf.obs[1:]) for buf in buffer])
+        rnn_next_states_actor = np.vstack([ReplayBuffer._cast(buf.rnn_states_actor[1:]) for buf in buffer])
+        next_masks = np.vstack([ReplayBuffer._cast(buf.masks[1:]) for buf in buffer])
+
         # Get mini-batch size and shuffle chunk data
         data_chunks = n_rollout_threads * buffer_size // data_chunk_length
         mini_batch_size = data_chunks // num_mini_batch
@@ -224,6 +234,10 @@ class ReplayBuffer(Buffer):
             rnn_states_actor_batch = []
             rnn_states_critic_batch = []
 
+            next_obs_batch = []
+            rnn_next_states_actor_batch = []
+            next_masks_batch = []
+
             for index in indices:
 
                 ind = index * data_chunk_length
@@ -239,6 +253,11 @@ class ReplayBuffer(Buffer):
                 rnn_states_actor_batch.append(rnn_states_actor[ind])
                 rnn_states_critic_batch.append(rnn_states_critic[ind])
 
+                # TODO: 增加next_obs
+                next_obs_batch.append(next_obs[ind:ind + data_chunk_length])
+                rnn_next_states_actor_batch.append(rnn_next_states_actor[ind:ind + data_chunk_length])
+                next_masks_batch.append(next_masks[ind:ind + data_chunk_length])
+
             L, N = data_chunk_length, mini_batch_size
 
             # These are all from_numpys of size (L, N, Dim)
@@ -249,6 +268,11 @@ class ReplayBuffer(Buffer):
             advantages_batch = np.stack(advantages_batch, axis=1)
             returns_batch = np.stack(returns_batch, axis=1)
             value_preds_batch = np.stack(value_preds_batch, axis=1)
+
+            # TODO: 增加next_obs
+            next_obs_batch = np.stack(next_obs_batch, axis=1)
+            rnn_next_states_actor_batch = np.stack(rnn_next_states_actor_batch, axis=1)
+            next_masks_batch = np.stack(next_masks_batch, axis=1)
 
             # States is just a (N, -1) from_numpy
             rnn_states_actor_batch = np.stack(rnn_states_actor_batch).reshape(N, *buffer[0].rnn_states_actor.shape[3:])
@@ -263,8 +287,14 @@ class ReplayBuffer(Buffer):
             returns_batch = ReplayBuffer._flatten(L, N, returns_batch)
             value_preds_batch = ReplayBuffer._flatten(L, N, value_preds_batch)
 
+            # TODO: 增加next_obs
+            next_obs_batch = ReplayBuffer._flatten(L, N, next_obs_batch)
+            rnn_next_states_actor_batch = ReplayBuffer._flatten(L, N, rnn_next_states_actor_batch)
+            next_masks_batch = ReplayBuffer._flatten(L, N, next_masks_batch)
+
             yield obs_batch, actions_batch, masks_batch, old_action_log_probs_batch, advantages_batch, \
-                returns_batch, value_preds_batch, rnn_states_actor_batch, rnn_states_critic_batch
+                  returns_batch, value_preds_batch, rnn_states_actor_batch, rnn_states_critic_batch, \
+                  next_obs_batch, rnn_next_states_actor_batch, next_masks_batch
 
 
 class SharedReplayBuffer(ReplayBuffer):

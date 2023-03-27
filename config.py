@@ -68,6 +68,8 @@ def _get_prepare_config(parser: argparse.ArgumentParser):
                        help="Number of torch threads for training (default 1)")
     group.add_argument("--n-rollout-threads", type=int, default=4,
                        help="Number of parallel envs for training/evaluating rollout (default 4)")
+    group.add_argument("--n-render-rollout-threads", type=int, default=1,
+                       help="number of parallel envs for rendering, could only be set as 1 for some environments")
     group.add_argument("--num-env-steps", type=float, default=1e7,
                        help='Number of environment steps to train (default: 1e7)')
     group.add_argument("--model-dir", type=str, default=None,
@@ -186,6 +188,8 @@ def _get_ppo_config(parser: argparse.ArgumentParser):
             by default false. If set, clip value loss.
         --num-mini-batch <int>
             number of batches for ppo (default: 1)
+            整个训练集分成几个batch来训练，
+            如果buffer_size=3000, n_rollout_threads=32, num_mini_batch=5, 则每次训练使用的数据量：3000*32/5
         --value-loss-coef <float>
             ppo value loss coefficient (default: 1)
         --entropy-coef <float>
@@ -212,6 +216,16 @@ def _get_ppo_config(parser: argparse.ArgumentParser):
                        help="By default, use max norm of gradients. If set, do not use.")
     group.add_argument("--max-grad-norm", type=float, default=2,
                        help='max norm of gradients (default: 2)')
+
+    # 平滑动作的选项
+    group.add_argument("--use-temporal-action-smooth-loss", action='store_true', default=False,
+                       help="By default false. If set, use temporal action smooth loss.")
+    group.add_argument("--use-spatial-action-smooth-loss", action='store_true', default=False,
+                       help="By default false. If set, use spatial action smooth loss.")
+    group.add_argument("--temporal-action-smooth-loss-coef", type=float, default=0.1,
+                       help='temporal action smooth loss coefficient (default: 0.01)')
+    group.add_argument("--spatial-action-smooth-loss-coef", type=float, default=0.1,
+                       help='spatial action smooth loss coefficient (default: 0.01)')
     return parser
 
 

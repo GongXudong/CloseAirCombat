@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import sys
 import os
 import traceback
@@ -90,6 +89,9 @@ def main(args):
     torch.cuda.manual_seed_all(all_args.seed)
 
     # cuda
+    print(torch.__version__)
+    print(all_args.cuda, torch.cuda.is_available())
+
     if all_args.cuda and torch.cuda.is_available():
         logging.info("choose to use gpu...")
         device = torch.device("cuda:0")  # use cude mask to control using which GPU
@@ -137,6 +139,29 @@ def main(args):
     # env init
     envs = make_train_env(all_args)
     eval_envs = make_eval_env(all_args) if all_args.use_eval else None
+
+    # # TODO: inspect envs
+    # # test begin
+    # # check env obs
+    # print(type(envs))
+    # tmp_state = envs.reset()
+    # print(tmp_state.shape)
+    # print(envs.observation_space.sample().shape)
+    # print(envs.action_space.sample().shape)
+    #
+    # actions = np.array([[envs.action_space.sample()] for i in range(32)])
+    # print(actions.shape)
+    #
+    # obss, rewards, dones, infos = envs.step(actions)
+    #
+    # print(obss.shape)
+    # print(rewards.shape)
+    # print(dones.shape)
+    # print(infos.shape)
+    #
+    # sys.exit(0)
+    #
+    # # test end
 
     config = {
         "all_args": all_args,

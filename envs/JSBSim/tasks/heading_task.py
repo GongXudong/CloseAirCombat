@@ -9,6 +9,7 @@ from ..termination_conditions import ExtremeState, LowAltitude, Overload, Timeou
 class HeadingTask(BaseTask):
     '''
     Control target heading with discrete action space
+    保持速度和高度，直线飞行！！！
     '''
     def __init__(self, config):
         super().__init__(config)

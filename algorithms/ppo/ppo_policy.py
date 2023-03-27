@@ -26,10 +26,26 @@ class PPOPolicy:
         """
         Returns:
             values, actions, action_log_probs, rnn_states_actor, rnn_states_critic
+
+            注意：返回的action是随机采样出来的，即distribution.sample()
         """
         actions, action_log_probs, rnn_states_actor = self.actor(obs, rnn_states_actor, masks)
         values, rnn_states_critic = self.critic(obs, rnn_states_critic, masks)
         return values, actions, action_log_probs, rnn_states_actor, rnn_states_critic
+    
+    def get_action_dist_probs(self, obs, rnn_states_actor, masks):
+        """返回动作的分布，例：对于category分布，返回各个类别的概率.
+
+        Args:
+            obs (_type_): _description_
+            rnn_states_actor (_type_): _description_
+            masks (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        actions, action_log_probs, rnn_states, action_dist_probs = self.actor(obs, rnn_states_actor, masks, deterministic=True, return_action_dist_probs=True)
+        return action_dist_probs
 
     def get_values(self, obs, rnn_states_critic, masks):
         """
@@ -39,14 +55,21 @@ class PPOPolicy:
         values, _ = self.critic(obs, rnn_states_critic, masks)
         return values
 
-    def evaluate_actions(self, obs, rnn_states_actor, rnn_states_critic, action, masks, active_masks=None):
+    def evaluate_actions(self, obs, rnn_states_actor, rnn_states_critic, action, masks, active_masks=None, return_action_dist_probs=False):
         """
+        Args:
+            return_action_dist_probs: 设置为True时，一并返回动作分布
         Returns:
-            values, action_log_probs, dist_entropy
+            values, action_log_probs, dist_entropy(, action_probs)
         """
-        action_log_probs, dist_entropy = self.actor.evaluate_actions(obs, rnn_states_actor, action, masks, active_masks)
-        values, _ = self.critic(obs, rnn_states_critic, masks)
-        return values, action_log_probs, dist_entropy
+        if not return_action_dist_probs:
+            action_log_probs, dist_entropy = self.actor.evaluate_actions(obs, rnn_states_actor, action, masks, active_masks)
+            values, _ = self.critic(obs, rnn_states_critic, masks)
+            return values, action_log_probs, dist_entropy
+        else:
+            action_log_probs, dist_entropy, action_dist_probs = self.actor.evaluate_actions(obs, rnn_states_actor, action, masks, active_masks, return_action_dist_probs)
+            values, _ = self.critic(obs, rnn_states_critic, masks)
+            return values, action_log_probs, dist_entropy, action_dist_probs
 
     def act(self, obs, rnn_states_actor, masks, deterministic=False):
         """

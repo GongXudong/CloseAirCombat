@@ -522,6 +522,7 @@ class ExtraCatalog(Property, Enum):
     target_longitude_geod_deg = Property(
         "tc/target-longitude-geod-deg", "target geocentric longitude [deg]", -180, 180
     )
+    # singleControlEnv任务中设置的时间戳，任务时间到达该时间戳，检查飞机的航向误差
     heading_check_time = Property("heading_check_time", "time to check whether current time reaches heading time", 0, 1000000)
 
 

@@ -33,6 +33,7 @@ class SingleControlEnv(BaseEnv):
         init_heading = self.np_random.uniform(0., 180.)
         init_altitude = self.np_random.uniform(14000., 30000.)
         init_velocities_u = self.np_random.uniform(400., 1200.)
+        # print(f'reset!!!!!  target_heading_deg: {init_heading}, target_altitude_ft: {init_altitude}, target_velocities_u_mps: {init_velocities_u * 0.3048}')
         for init_state in self.init_states:
             init_state.update({
                 'ic_psi_true_deg': init_heading,

@@ -53,13 +53,14 @@ class ACTLayer(nn.Module):
         else: 
             raise NotImplementedError(f"Unsupported action space type: {type(act_space)}!")
 
-    def forward(self, x, deterministic=False, **kwargs):
+    def forward(self, x, deterministic=False, return_action_dist_probs=False, **kwargs):
         """
         Compute actions and action logprobs from given input.
 
         Args:
             x (torch.Tensor): input to network.
             deterministic (bool): whether to sample from action distribution or return the mode.
+            return_action_dist_probs (bool): 是否返回动作的分布，例：对于category分布，返回各个类别的概率.
 
         Returns:
             actions (torch.Tensor): actions to take.
@@ -71,16 +72,28 @@ class ACTLayer(nn.Module):
         if self._multidiscrete_action:
             actions = []
             action_log_probs = []
+            action_dist_probs = []
             for action_out in self.action_outs:
                 action_dist = action_out(x)
+
+                action_dist_prob = action_dist.probs
                 action = action_dist.mode() if deterministic else action_dist.sample()
                 action_log_prob = action_dist.log_probs(action)
+
                 actions.append(action)
                 action_log_probs.append(action_log_prob)
+                action_dist_probs.append(action_dist_prob)
+
             actions = torch.cat(actions, dim=-1)
             action_log_probs = torch.cat(action_log_probs, dim=-1).sum(dim=-1, keepdim=True)
+            action_dist_probs = torch.cat(action_dist_probs, dim=-1)
         
         elif self._shoot_action:
+
+            if return_action_dist_probs:
+                # TODO: 暂时没用到需要射击的场景，所以暂不增加计算action_dist_probs的代码！！！
+                raise ValueError("Normal distribution has no `probs` attribute!")
+
             actions = []
             action_log_probs = []
             for action_out in self.action_outs[:-1]:
@@ -97,11 +110,16 @@ class ACTLayer(nn.Module):
 
         else:
             action_dists = self.action_out(x)
+            action_dist_probs = action_dist.probs
             actions = action_dists.mode() if deterministic else action_dists.sample()
             action_log_probs = action_dists.log_probs(actions)
-        return actions, action_log_probs
+        
+        if return_action_dist_probs:
+            return actions, action_log_probs, action_dist_probs
+        else:
+            return actions, action_log_probs
 
-    def evaluate_actions(self, x, action, active_masks=None, **kwargs):
+    def evaluate_actions(self, x, action, active_masks=None, return_action_dist_probs=False, **kwargs):
         """
         Compute log probability and entropy of given actions.
 
@@ -109,6 +127,7 @@ class ACTLayer(nn.Module):
             x (torch.Tensor): input to network.
             action (torch.Tensor): actions whose entropy and log probability to evaluate.
             active_masks (torch.Tensor): denotes whether an agent is active or dead.
+            return_action_dist_probs (bool): 是否返回动作的分布，例：对于category分布，返回各个类别的概率.
 
         Returns:
             action_log_probs (torch.Tensor): log probabilities of the input actions.
@@ -121,17 +140,29 @@ class ACTLayer(nn.Module):
             action = torch.transpose(action, 0, 1)
             action_log_probs = []
             dist_entropy = []
+            action_dist_probs = []
             for action_out, act in zip(self.action_outs, action):
                 action_dist = action_out(x)
+                action_dist_prob = action_dist.probs
+
                 action_log_probs.append(action_dist.log_probs(act.unsqueeze(-1)))
+                action_dist_probs.append(action_dist_prob)
+
                 if active_masks is not None:
                     dist_entropy.append((action_dist.entropy() * active_masks) / active_masks.sum())
                 else:
                     dist_entropy.append(action_dist.entropy() / action_log_probs[-1].size(0))
+
             action_log_probs = torch.cat(action_log_probs, dim=-1).sum(dim=-1, keepdim=True)
             dist_entropy = torch.cat(dist_entropy, dim=-1).sum(dim=-1, keepdim=True)
+            action_dist_probs = torch.cat(action_dist_probs, dim=-1)
 
         elif self._shoot_action:
+
+            if return_action_dist_probs:
+                # TODO: 暂时没用到需要射击的场景，所以暂不增加计算action_dist_probs的代码！！！
+                raise ValueError("Normal distribution has no `probs` attribute!")
+            
             dis_action, shoot_action = action.split((self._discrete_dim, self._shoot_dim), dim=-1)
             action_log_probs = []
             dist_entropy = []
@@ -158,12 +189,19 @@ class ACTLayer(nn.Module):
 
         else:
             action_dist = self.action_out(x)
+
             action_log_probs = action_dist.log_probs(action)
+            action_dist_probs = action_dist.probs
+
             if active_masks is not None:
                 dist_entropy = (action_dist.entropy() * active_masks) / active_masks.sum()
             else:
                 dist_entropy = action_dist.entropy() / action_log_probs.size(0)
-        return action_log_probs, dist_entropy
+        
+        if return_action_dist_probs:
+            return action_log_probs, dist_entropy, action_dist_probs
+        else:
+            return action_log_probs, dist_entropy
 
     def get_probs(self, x):
         """
