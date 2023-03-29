@@ -84,8 +84,6 @@ class PPOTrainer():
 
         policy_entropy_loss = -dist_entropy.mean()
 
-        loss = policy_loss + value_loss * self.value_loss_coef + policy_entropy_loss * self.entropy_coef
-
         # TODO：在此处增加smooth loss
         # 根据action_dist_probs计算其它loss
         if self.use_temporal_action_smooth_loss:
@@ -96,7 +94,6 @@ class PPOTrainer():
                 rnn_states_actor=rnn_next_states_actor_batch,
                 masks=next_masks_batch
             )
-            loss += self.temporal_action_smooth_loss_coef * temporal_action_smooth_loss
 
         if self.use_spatial_action_smooth_loss:
             spatial_action_smooth_loss = self.spatial_action_smooth_loss_calculator(
@@ -106,14 +103,16 @@ class PPOTrainer():
                 rnn_states_actor=rnn_states_actor_batch,
                 masks=masks_batch
             )
-            loss += self.spatial_action_smooth_loss_coef * spatial_action_smooth_loss
 
         if self.use_temporal_action_smooth_loss and self.use_spatial_action_smooth_loss:
             print(f"PPO loss: {policy_loss}, entropy loss: {policy_entropy_loss}, temporal smooth loss: {temporal_action_smooth_loss}, spatial smooth loss: {spatial_action_smooth_loss}")
-
-        if not self.use_temporal_action_smooth_loss and not self.use_spatial_action_smooth_loss:
+            loss = policy_loss + value_loss * self.value_loss_coef + policy_entropy_loss * self.entropy_coef
+            + self.temporal_action_smooth_loss_coef * temporal_action_smooth_loss + self.spatial_action_smooth_loss_coef * spatial_action_smooth_loss
+        elif not self.use_temporal_action_smooth_loss and not self.use_spatial_action_smooth_loss:
             print(f"PPO loss: {policy_loss}, entropy loss: {policy_entropy_loss}")
-
+            loss = policy_loss + value_loss * self.value_loss_coef + policy_entropy_loss * self.entropy_coef
+        else:
+            raise NotImplementedError("暂未实现只使用ts或ss！！！")
 
         # Optimize the loss function
         policy.optimizer.zero_grad()
