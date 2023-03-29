@@ -257,7 +257,8 @@ def _get_save_config(parser: argparse.ArgumentParser):
     """
     Save parameters:
         --save-interval <int>
-            time duration between contiunous twice models saving.
+            time duration between contiunous twice models saving. 
+            模型两次保存之间，实际使用了save_interval * buffer_size * n_rollout_threads条数据训练！！！
     """
     group = parser.add_argument_group("Save parameters")
     group.add_argument("--save-interval", type=int, default=1,

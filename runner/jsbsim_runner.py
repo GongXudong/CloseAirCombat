@@ -99,7 +99,10 @@ class JSBSimRunner(Runner):
 
             # save model
             if (episode % self.save_interval == 0) or (episode == episodes - 1):
-                self.save(episode)
+                if (episode == episodes - 1):
+                    self.save(suffix="latest")
+                else:
+                    self.save(suffix=str(episode))
                 
 
     def warmup(self):
@@ -229,8 +232,8 @@ class JSBSimRunner(Runner):
         render_infos['render_episode_reward'] = render_episode_rewards
         logging.info("render episode reward of agent: " + str(render_infos['render_episode_reward']))
 
-    def save(self, episode):
+    def save(self, suffix: str="latest"):
         policy_actor_state_dict = self.policy.actor.state_dict()
-        torch.save(policy_actor_state_dict, str(self.save_dir) + '/actor_latest.pt')
+        torch.save(policy_actor_state_dict, str(self.save_dir) + f'/actor_{suffix}.pt')
         policy_critic_state_dict = self.policy.critic.state_dict()
-        torch.save(policy_critic_state_dict, str(self.save_dir) + '/critic_latest.pt')
+        torch.save(policy_critic_state_dict, str(self.save_dir) + f'/critic_{suffix}.pt')
